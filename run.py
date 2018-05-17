@@ -17,17 +17,9 @@ async def upgrade_service():
         inspect = await docker.services.inspect(
             service_id=service_id
         )
-        try:
-            image_data = await docker.images.get(image)
-        except DockerError as e:
-            if e.status == 404:
-                print(f"Pull image {image}")
-                await docker.pull(image)
-                image_data = await docker.images.get(image)
-            else:
-                print(f'Error retrieving {image} image.')
-                await docker.close()
-                return
+        print(f"Pull image {image}")
+        await docker.pull(image)
+        image_data = await docker.images.get(image)
         print(f"Upgrade service {service_id} with image {image_data['RepoDigests'][0]}")
         update = await docker.services.update(
             service_id=service_id,
@@ -46,10 +38,12 @@ async def upgrade_service():
 
 if __name__ == '__main__':
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(upgrade_service, 'interval', seconds=int(os.getenv('SERVICE_INTERVAL_UPGRADE', 3600)),
+    scheduler.add_job(upgrade_service, 'interval', seconds=int(os.getenv('SERVICE_INTERVAL_UPGRADE', 10800)),
                       max_instances=1)
     scheduler.start()
     try:
-        asyncio.get_event_loop().run_forever()
+        event_loop = asyncio.get_event_loop()
+        event_loop.run_until_complete(upgrade_service())
+        event_loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass
